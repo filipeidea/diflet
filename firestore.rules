@@ -1,0 +1,18 @@
+rules_version = '2';
+// Regras do Diflet: cada jogador lê e grava só os próprios dados; partidas só podem ser criadas; o dono lê tudo.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function logado() { return request.auth != null; }
+    function dono() { return logado() && request.auth.token.email == "filipeidea@gmail.com" && request.auth.token.email_verified == true; }
+    function meu(id) { return logado() && (id == request.auth.uid || id == "computador-" + request.auth.uid); }
+
+    match /colecoes/{id}   { allow read: if dono() || meu(id); allow write: if meu(id); }
+    match /andamento/{id}  { allow read: if dono() || (logado() && id == request.auth.uid); allow write: if logado() && id == request.auth.uid; }
+    match /jogadores/{uid} { allow read: if dono() || (logado() && uid == request.auth.uid); allow write: if logado() && uid == request.auth.uid; }
+    match /partidas/{pid}  {
+      allow create: if logado() && request.resource.data.uid == request.auth.uid;
+      allow read: if dono();
+      allow update, delete: if false;
+    }
+  }
+}
