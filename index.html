@@ -141,7 +141,7 @@ input[type=text],select{font:inherit;padding:9px 11px;border-radius:9px;border:1
 .lazbtn{padding:0;border:0;background:none;border-radius:9px;flex:none} .lazbtn:hover .card{outline:3px solid var(--gold);outline-offset:2px}
 /* ampliar carta (toque longo / botão direito) */
 .zoom{position:fixed;inset:0;z-index:40;display:grid;place-items:center;align-content:center;gap:12px;background:rgba(8,10,20,.78);padding:max(16px,env(safe-area-inset-top,0px)) 16px max(16px,env(safe-area-inset-bottom,0px))}
-.zoom .card{--cw:min(78vw,330px,calc((100vh - 120px)*.714))}
+.zoom .card{--cw:min(86vw,440px,calc((100vh - 120px)*.714))}
 .zoom p{color:#e8eaf3;font-size:13px;margin:0;text-align:center;max-width:330px}
 .card.empty{background:transparent;border:1.5px dashed var(--line);box-shadow:none;display:grid;place-items:center;color:var(--muted);font-size:9cqi}
 .card.sel{outline:3px solid var(--accent);outline-offset:2px;transform:translateY(-4px)}
@@ -214,6 +214,12 @@ table.stats td.n{text-align:right;font-weight:700}
 .collection{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:14px 10px;justify-items:center;--cw:118px}
 .collection.lost .card{filter:grayscale(1);opacity:.6}
 .cwrap{position:relative}
+/* olho para ampliar a carta na coleção: aparece ao passar o mouse; em tela de toque fica sempre visível, mais discreto */
+.cwrap .eye{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%) scale(.9);width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.55);background:rgba(20,22,34,.35);color:rgba(255,255,255,.85);display:grid;place-items:center;padding:0;cursor:zoom-in;opacity:0;transition:opacity .15s,transform .15s;z-index:2;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+.cwrap:hover .eye,.cwrap .eye:focus-visible{opacity:.8;transform:translate(-50%,-50%) scale(1)}
+.cwrap .eye:hover{opacity:1;background:rgba(20,22,34,.5)}
+.cwrap .eye:focus-visible{outline:2px solid #fff;outline-offset:2px}
+@media (hover:none){.cwrap .eye{opacity:.6;transform:translate(-50%,-50%) scale(.85)}}
 .cwrap .qty{position:absolute;right:-6px;top:-8px;background:var(--fg);color:var(--bg);border-radius:999px;font-size:11px;font-weight:800;padding:2px 7px}
 .cwrap .new{position:absolute;left:-6px;top:-8px;background:var(--win);color:var(--surface);border-radius:999px;font-size:10px;font-weight:800;padding:2px 7px;text-transform:uppercase;letter-spacing:.06em}
 .chipbtn{padding:6px 12px;border-radius:999px;font-size:13px}
@@ -477,16 +483,16 @@ function newCollection(nome){
   return {nome, cartas, ganhas:0, perdidas:0, partidas:0, vitorias:0, dracmas:0, pacotes:0, criada:new Date().toISOString()};
 }
 function buildDeck(col){
-  // monta 17 cartas da coleção respeitando no máximo 5 douradas e 3 de modificação
+  // monta 20 cartas da coleção respeitando no máximo 5 douradas e 3 de modificação
   const copies = []; for(const [code,n] of Object.entries(col.cartas)) for(let i=0;i<n;i++) if(byCode[code]) copies.push(byCode[code]);
   shuffle(copies);
   const deck=[]; let g=0,m=0;
-  for(const c of copies){ if(deck.length>=17) break;
+  for(const c of copies){ if(deck.length>=DECK_MAX) break;
     if(isGold(c)&&g>=MAX_GOLD) continue; if(isMod(c)&&m>=MAX_MOD) continue;
     deck.push(c); g+=isGold(c); m+=isMod(c) }
   return deck;
 }
-const DECK_N=17, MAX_GOLD=5, MAX_MOD=3;
+const DECK_MIN=16, DECK_MAX=20, MAX_GOLD=5, MAX_MOD=3; // baralho: o jogador escolhe entre 16 e 20 cartas
 /* regras em teste (ajustáveis para simulação) */
 const VERSAO_REGRAS = "v21: obediência desempata, 1 troca, só o sacrifício transfere, Revelação no 3º turno";
 const CONFIG = {sacSwaps:1, prizeCard:false, lossesPerDracma:3, obeyWinsTie:true, cpuMirror:true};
@@ -494,15 +500,15 @@ function migrate(col){ if(col.vales){ col.dracmas=(col.dracmas||0)+3*col.vales; 
 function deckStats(codes){ const cs=codes.map(k=>byCode[k]).filter(Boolean); return {n:cs.length, g:cs.filter(isGold).length, m:cs.filter(isMod).length} }
 /* deixa só as cartas que o jogador tem (respeitando cópias) e os limites */
 function cleanDeck(col, codes){ const have={...col.cartas}, out=[]; let g=0,m=0;
-  for(const k of codes||[]){ const c=byCode[k]; if(!c||!(have[k]>0)||out.length>=DECK_N) continue; if(isGold(c)&&g>=MAX_GOLD) continue; if(isMod(c)&&m>=MAX_MOD) continue;
+  for(const k of codes||[]){ const c=byCode[k]; if(!c||!(have[k]>0)||out.length>=DECK_MAX) continue; if(isGold(c)&&g>=MAX_GOLD) continue; if(isMod(c)&&m>=MAX_MOD) continue;
     have[k]--; out.push(k); g+=isGold(c); m+=isMod(c) } return out }
 /* baralho automático: as cartas mais fortes dentro dos limites */
 const POWER = c => c.t==="Rara"?5000 : isMod(c)? (c.n==="Arco-íris"?300:400) : c.v.reduce((a,b)=>a+b,0) + (c.p&&/vence/.test(c.p)?25:0);
-function autoDeck(col, start=[]){ const out=cleanDeck(col,start), used={}; out.forEach(k=>used[k]=(used[k]||0)+1);
+function autoDeck(col, start=[], n=DECK_MAX){ const out=cleanDeck(col,start), used={}; out.forEach(k=>used[k]=(used[k]||0)+1);
   const copies=[]; for(const [k,n] of Object.entries(col.cartas)) for(let i=used[k]||0;i<n;i++) if(byCode[k]) copies.push(byCode[k]);
   copies.sort((a,b)=>POWER(b)-POWER(a));
   let {g,m}=deckStats(out);
-  for(const c of copies){ if(out.length>=DECK_N) break; if(isGold(c)&&g>=MAX_GOLD) continue; if(isMod(c)&&m>=MAX_MOD) continue; out.push(c.c); g+=isGold(c); m+=isMod(c) }
+  for(const c of copies){ if(out.length>=n) break; if(isGold(c)&&g>=MAX_GOLD) continue; if(isMod(c)&&m>=MAX_MOD) continue; out.push(c.c); g+=isGold(c); m+=isMod(c) }
   return out }
 /* pacote: 2 cartas normais + 1 "carta da sorte" (a 3ª). Sorte: 60% especial, 30% efeito, 9% comum, 1% Jesus.
    Garantia: depois de 2 pacotes seguidos sem especial, a carta da sorte do 3º é especial com certeza. */
@@ -517,7 +523,7 @@ function openPack(col){ if((col.dracmas||0)<3) return null; col.dracmas-=3; col.
   const got=[pick(CARDS,W), pick(CARDS,W), luckCard(col)];
   col.pacotesSemEspecial = got.some(isGold) ? 0 : (col.pacotesSemEspecial||0)+1;
   got.forEach(c=>col.cartas[c.c]=(col.cartas[c.c]||0)+1); return got }
-function topUp(col){ // garante pelo menos 17 cartas jogáveis
+function topUp(col){ // garante pelo menos 20 cartas jogáveis
   let total = Object.values(col.cartas).reduce((a,b)=>a+b,0);
   const commons = CARDS.filter(c=>c.t==="Comum");
   while(total<20){ const c=commons[rnd(commons.length)]; col.cartas[c.c]=(col.cartas[c.c]||0)+1; total++ }
@@ -586,8 +592,8 @@ async function startGame(){
         const n=Object.values(cols[0].cartas).reduce((a,b)=>a+b,0), cartas={};
         for(let i=0;i<n;i++){ const x=pick(CARDS,W); cartas[x.c]=(cartas[x.c]||0)+1 }
         c.cartas=cartas }
-      codes = autoDeck(c) }
-    if(codes.length<DECK_N) codes = autoDeck(c, codes);
+      codes = autoDeck(c, [], Math.max(DECK_MIN, decks[0].length)) } // o computador joga com o mesmo tamanho de baralho que você
+    if(codes.length<DECK_MIN) codes = autoDeck(c, codes, DECK_MIN);
     c.baralho = codes; await Store.setCol(id,c);
     c=JSON.parse(JSON.stringify(c)); cols.push(c); decks.push(codes) }
   G = {
@@ -1029,7 +1035,7 @@ function deckViewHTML(pi, P){
   const F=[["todas","Todas"],["especiais","Especiais"],["comuns","Comuns"],["mod","Anjos e vilões"],["novas","Novas"]];
   return `<div class="panel">${head}${vale}
     <div class="row" role="group" aria-label="Filtro">${F.map(([k,t])=>`<button class="chipbtn" data-filter="${k}" aria-pressed="${UI.filter===k}">${t}</button>`).join("")}</div>
-    <div class="collection">${codes.map(c=>`<div class="cwrap">${cardHTML(c)}${col.cartas[c.c]>1?`<span class="qty">×${col.cartas[c.c]}</span>`:""}${fresh.has(c.c)?`<span class="new">nova</span>`:""}</div>`).join("") || `<p class="muted">Nenhuma carta neste filtro.</p>`}</div>
+    <div class="collection">${codes.map(c=>`<div class="cwrap">${cardHTML(c)}${eyeBtn(c)}${col.cartas[c.c]>1?`<span class="qty">×${col.cartas[c.c]}</span>`:""}${fresh.has(c.c)?`<span class="new">nova</span>`:""}</div>`).join("") || `<p class="muted">Nenhuma carta neste filtro.</p>`}</div>
     ${lost.length?`<h3>Perdidas nesta partida</h3><div class="collection lost">${lost.map(c=>`<div class="cwrap">${cardHTML(c)}</div>`).join("")}</div>`:""}
     <h3>Conquistas · ${got} de ${ach.length}</h3>
     <div class="ach">${ach.map(a=>`<div class="badge ${a.ok?"ok":""}"><span class="medal" aria-hidden="true">${a.ok?"★":"☆"}</span><div><b>${a.t}</b><span>${a.d}</span></div><em>${a.ok?"conquistada":a.pr}</em></div>`).join("")}</div>
@@ -1310,7 +1316,7 @@ let SETUP_DECK=null;
 var renderSetup = async function(m){
   m.innerHTML = `<div class="panel">
     <h2>Nova partida</h2>
-    <details class="intro" ${isPhone()?"":"open"}><summary>Como funciona</summary><p class="muted">Cada jogador tem uma coleção própria, salva entre partidas. Na primeira vez, o jogador recebe 25 cartas sorteadas nas proporções reais (comum ~10 cópias, dourada ~1,5, Jesus 1 em 500). Você monta o seu baralho de 17 cartas com o que tem na coleção: no máximo 5 especiais e 3 de modificação. Cada vitória rende 1 dracma (e cada 3 derrotas também rendem 1), e com 3 dracmas você compra um pacote de 3 cartas. Cada jogador enfrenta o seu próprio computador, que começa com 25 cartas e evolui com as partidas.</p></details>
+    <details class="intro" ${isPhone()?"":"open"}><summary>Como funciona</summary><p class="muted">Cada jogador tem uma coleção própria, salva entre partidas. Na primeira vez, o jogador recebe 25 cartas sorteadas nas proporções reais (comum ~10 cópias, dourada ~1,5, Jesus 1 em 500). Você monta o seu baralho de 16 a 20 cartas com o que tem na coleção: no máximo 5 especiais e 3 de modificação. Cada vitória rende 1 dracma (e cada 3 derrotas também rendem 1), e com 3 dracmas você compra um pacote de 3 cartas. Cada jogador enfrenta o seu próprio computador, que começa com 25 cartas e evolui com as partidas.</p></details>
     <div class="grid2">
       <label class="field" for="p1">Jogador 1<input type="text" id="p1" value="${esc(SETUP.p1)}" placeholder="Seu nome" maxlength="30"></label>
       <label class="field" for="opp">Adversário<select id="opp"><option value="cpu" ${SETUP.vsCpu?"selected":""}>Computador</option><option value="p2" ${SETUP.vsCpu?"":"selected"}>Outra pessoa neste aparelho</option></select></label>
@@ -1332,7 +1338,7 @@ function setupStartState(){ const b=$("#start"), w=$("#startwhy"); if(!b) return
   const D=SETUP_DECK; let why="";
   if(!SETUP.p1.trim()) why="Escreva seu nome.";
   else if(!D) why="Crie ou carregue sua coleção.";
-  else if(D.chosen.length<DECK_N) why=`Escolha ${DECK_N-D.chosen.length} carta${DECK_N-D.chosen.length===1?"":"s"} para o seu baralho.`;
+  else if(D.chosen.length<DECK_MIN) why=`Escolha mais ${DECK_MIN-D.chosen.length} carta${DECK_MIN-D.chosen.length===1?"":"s"}: o baralho precisa de 16 a 20 cartas.`;
   b.disabled=!!why; if(w) w.textContent=why }
 function renderSetupDeck(){ const box=$("#setupdeck"); if(!box) return; const D=SETUP_DECK;
   if(!D){ box.innerHTML=""; setupStartState(); return }
@@ -1347,20 +1353,20 @@ function renderSetupDeck(){ const box=$("#setupdeck"); if(!box) return; const D=
   const owned = Object.keys(col.cartas).filter(k=>col.cartas[k]>0&&byCode[k]).map(k=>byCode[k])
     .filter(c=> SB.filter==="todas" || (SB.filter==="especiais"&&(isGold(c)||c.t==="Rara")) || (SB.filter==="comuns"&&c.t==="Comum") || (SB.filter==="mod"&&isMod(c)))
     .sort((a,b)=>TYPE_ORDER(a)-TYPE_ORDER(b) || a.c.localeCompare(b.c));
-  const canAdd = c => (inDeck[c.c]||0) < col.cartas[c.c] && st.n<DECK_N && !(isGold(c)&&st.g>=MAX_GOLD) && !(isMod(c)&&st.m>=MAX_MOD);
-  const why = c => (inDeck[c.c]||0)>=col.cartas[c.c] ? "Todas as cópias já estão no baralho" : st.n>=DECK_N ? "O baralho já tem 17 cartas" : isGold(c)&&st.g>=MAX_GOLD ? "Limite de 5 especiais" : isMod(c)&&st.m>=MAX_MOD ? "Limite de 3 de modificação" : "";
+  const canAdd = c => (inDeck[c.c]||0) < col.cartas[c.c] && st.n<DECK_MAX && !(isGold(c)&&st.g>=MAX_GOLD) && !(isMod(c)&&st.m>=MAX_MOD);
+  const why = c => (inDeck[c.c]||0)>=col.cartas[c.c] ? "Todas as cópias já estão no baralho" : st.n>=DECK_MAX ? "O baralho já tem 20 cartas, o máximo" : isGold(c)&&st.g>=MAX_GOLD ? "Limite de 5 especiais" : isMod(c)&&st.m>=MAX_MOD ? "Limite de 3 de modificação" : "";
   const F=[["todas","Todas"],["especiais","Especiais"],["comuns","Comuns"],["mod","Anjos e vilões"]];
   const ach=achievements(col);
   const deck = `<div class="panel">
     <div class="row" style="justify-content:space-between"><h2>Seu baralho</h2>
-      <div class="row"><span class="pill ${st.n===DECK_N?"win":""}">${st.n}/${DECK_N} cartas</span><span class="pill">${st.g}/${MAX_GOLD} especiais</span><span class="pill">${st.m}/${MAX_MOD} modificação</span></div></div>
+      <div class="row"><span class="pill ${st.n>=DECK_MIN?"win":""}" title="O baralho pode ter de 16 a 20 cartas">${st.n} cartas (16 a 20)</span><span class="pill">${st.g}/${MAX_GOLD} especiais</span><span class="pill">${st.m}/${MAX_MOD} modificação</span></div></div>
     <p class="muted explain">Toque numa carta da coleção para colocá-la no baralho, e numa carta do baralho para tirá-la.</p>
     <div class="deckstrip">${D.chosen.length? D.chosen.map((k,i)=>cardHTML(byCode[k],{attrs:`data-rm="${i}" role="button" tabindex="0" aria-label="Tirar ${esc(byCode[k].n)} do baralho"`})).join("") : `<p class="muted">Seu baralho está vazio.</p>`}</div>
     <div class="row"><button id="auto">Completar com as mais fortes</button><button id="clear" ${D.chosen.length?"":"disabled"}>Esvaziar baralho</button></div>
     <h3>Sua coleção (${Object.values(col.cartas).reduce((a,b)=>a+b,0)} cartas)</h3>
     <div class="row" role="group" aria-label="Filtro">${F.map(([k,t])=>`<button class="chipbtn" data-sfilter="${k}" aria-pressed="${SB.filter===k}">${t}</button>`).join("")}</div>
     <div class="collection">${owned.map(c=>{ const left=col.cartas[c.c]-(inDeck[c.c]||0), ok=canAdd(c);
-      return `<div class="cwrap ${left?"":"used"}">${cardHTML(c,{attrs: ok?`data-add="${c.c}" role="button" tabindex="0" aria-label="Colocar ${esc(c.n)} no baralho"`:`title="${esc(why(c))}"`})}<span class="qty">${left}/${col.cartas[c.c]}</span></div>` }).join("")}</div>
+      return `<div class="cwrap ${left?"":"used"}">${cardHTML(c,{attrs: ok?`data-add="${c.c}" role="button" tabindex="0" aria-label="Colocar ${esc(c.n)} no baralho"`:`title="${esc(why(c))}"`})}${eyeBtn(c)}<span class="qty">${left}/${col.cartas[c.c]}</span></div>` }).join("")}</div>
     <details ${SB.showAch?"open":""} id="achd"><summary><b>Conquistas · ${ach.filter(a=>a.ok).length} de ${ach.length}</b></summary>
       <div class="ach" style="margin-top:10px">${ach.map(a=>`<div class="badge ${a.ok?"ok":""}"><span class="medal" aria-hidden="true">${a.ok?"★":"☆"}</span><div><b>${a.t}</b><span>${a.d}</span></div><em>${a.ok?"conquistada":a.pr}</em></div>`).join("")}</div></details>
   </div>`;
@@ -1434,7 +1440,7 @@ async function renderPanel(m){
   </div>`;
 }
 const RULES=`<div class="panel"><h2>Resumo das regras usadas no app</h2>
-<p>Cada jogador monta um baralho de 17 cartas escolhidas da sua coleção (no máximo 5 especiais e 3 de modificação): 4 na linha de duelo (Fé, Força, Caráter, Milagre), 1 carta de sacrifício oculta e o resto no bolinho.</p>
+<p>Cada jogador monta um baralho de 16 a 20 cartas escolhidas da sua coleção (no máximo 5 especiais e 3 de modificação): 4 na linha de duelo (Fé, Força, Caráter, Milagre), 1 carta de sacrifício oculta e o resto no bolinho.</p>
 <p><b>A cada turno</b>, cada jogador escolhe Obedecer (linha às cegas, sem risco) ou Sacrificar (vê a linha e pode fazer uma troca de posição entre duas cartas; se perder o turno, a carta de sacrifício vai para o adversário para sempre e outra é sorteada do bolinho).</p>
 <p><b>Duelo</b>: posição por posição. Jesus vence qualquer carta. Ciclo de classes: Profeta vence Rei, Rei vence Patriarca, Patriarca vence Apóstolo, Apóstolo vence Profeta. Depois vale o número do atributo; empate passa ao próximo atributo das mesmas cartas. Caim elimina a carta adversária da posição dele se ela tiver menos Força que ele (60) e vence a posição; contra cartas mais fortes, duela normalmente.</p>
 <p><b>Modificação</b>: anjo ou vilão sorteado para a linha é substituído por outra carta e fica reservado, aberto na mesa. Depois que as cartas são reveladas, qualquer jogador pode tocar numa carta da reserva e depois na carta que quer aumentar ou diminuir, até encerrar o turno (Miguel +30 Milagre, Gabriel +30 Força, Espírito Santo +50 se Caráter acima de 80, Serpente −30 Caráter, Golias −30 Fé, Dalila −30 Força, Bezerro de Ouro −30 Milagre exceto contra profetas e apóstolos).</p>
@@ -1549,6 +1555,9 @@ document.addEventListener("click",e=>{
   const c=e.target.closest(".card,.pilebtn"); if(c && !c.classList.contains("empty")) woodTap() },true);
 /* ampliar carta: toque longo (celular) ou botão direito (computador) abre a carta grande; um toque fecha */
 const ZOOM={t:null, x:0, y:0, suppress:false};
+function eyeBtn(c){ return `<button type="button" class="eye" data-eye="${c.c}" aria-label="Ampliar ${esc(c.n)}" title="Ampliar"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 5C6.5 5 2.7 9.1 1.5 12c1.2 2.9 5 7 10.5 7s9.3-4.1 10.5-7C21.3 9.1 17.5 5 12 5zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9zm0-2.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" fill="currentColor"/></svg></button>` }
+window.addEventListener("click",e=>{ const b=e.target.closest("[data-eye]"); if(!b) return; e.preventDefault(); e.stopPropagation(); openZoom(b.dataset.eye) },true);
+window.addEventListener("keydown",e=>{ const z=$("#zoom"); if(e.key==="Escape" && z && !z.hidden) z.hidden=true });
 function openZoom(code){ const c=byCode[code]; if(!c) return; let el=$("#zoom"); if(!el){ el=document.createElement("div"); el.id="zoom"; el.className="zoom"; document.body.appendChild(el) }
   el.innerHTML = cardHTML(c) + `<p>${esc(c.n)}${c.p?" · "+esc(c.p):""}</p><p style="opacity:.7">Toque para fechar</p>`; el.hidden=false;
   el.onclick=()=>{ el.hidden=true } }
