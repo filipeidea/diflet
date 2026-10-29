@@ -1571,8 +1571,7 @@ window.addEventListener("contextmenu",e=>{ const c=e.target.closest(".card[data-
 /* momentos do jogo: "você" é o jogador humano contra o computador; com duas pessoas, toca o som de vitória para quem vencer */
 const meIdx=()=> G && G.P ? (G.P[1].cpu ? 0 : G.P[0].cpu ? 1 : null) : null;
 const gameSfx={
-  pos(R){ if(/Caim eliminou/.test(R.why)) return sfx("corda",.3); if(/Jesus vence/.test(R.why)) return sfx("vitoria",.3);
-    const me=meIdx(); if(R.r!==0 && (me===null || (me===0?R.r>0:R.r<0))) sfx("interruptor",.3) },
+  pos(R){ if(/Caim eliminou/.test(R.why)) return sfx("corda",.3); if(/Jesus vence/.test(R.why)) return sfx("vitoria",.3) }, // ganhar posição comum não tem som (o clique do Revelar já toca o Interruptor)
   turn(w){ if(w===null) return; const me=meIdx(); sfx(me===null||w===me?"vitoria":"derrota",.4) },
   match(w){ const me=meIdx(); sfx(me===null||w===me?"fanfarra":"derrota",.5) },
   effect(){ sfx("fanfarra",.05) },
