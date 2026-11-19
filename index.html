@@ -1603,12 +1603,32 @@ const fdb = {
   collection: p => { const c = FS.collection(p); if(p!=="partidas") return c;
     return { add: m => c.add(Object.assign({}, m, {uid: window.AUTH.uid, email: window.AUTH.email})), orderBy: (...a) => c.orderBy(...a), get: () => c.get() } }
 };
+/* navegadores embutidos (WhatsApp, Instagram, Facebook, TikTok...) não deixam entrar com Google */
+function inAppBrowser(){ const ua=navigator.userAgent||"";
+  const m=ua.match(/WhatsApp|Instagram|FBAN|FBAV|FB_IAB|Messenger|TikTok|musical_ly|BytedanceWebview|Twitter|Line\/|Snapchat|LinkedInApp|Pinterest|KAKAOTALK|Telegram/i);
+  if(m) return m[0];
+  if(/Android/i.test(ua) && /; wv\)/.test(ua)) return "app";
+  return null }
+function inAppNotice(){ const app=inAppBrowser(); if(!app) return "";
+  const nome=/whatsapp/i.test(app)?"do WhatsApp":/instagram/i.test(app)?"do Instagram":/fb|messenger/i.test(app)?"do Facebook":/tiktok|musical|bytedance/i.test(app)?"do TikTok":"deste aplicativo";
+  const android=/Android/i.test(navigator.userAgent), url=location.href.split("#")[0];
+  const abrir = android ? `<a class="primary" href="intent://${url.replace(/^https?:\/\//,"")}#Intent;scheme=https;package=com.android.chrome;end" style="display:block;text-align:center;padding:12px;border-radius:10px;text-decoration:none;margin:8px 0;font-weight:600;background:var(--accent);color:var(--accent-fg)">Abrir no Chrome</a>` : "";
+  const passo = android ? "Se o botão não funcionar, toque nos três pontinhos (⋮) e escolha <b>Abrir no Chrome</b>."
+    : "Toque nos três pontinhos (⋯) ou no ícone de compartilhar e escolha <b>Abrir no Safari</b> (ou no navegador).";
+  return `<div id="inapp" style="border:2px solid var(--lose);border-radius:12px;padding:10px 12px;margin:10px 0;text-align:left">
+    <b>Abra no Chrome ou no Safari para entrar.</b>
+    <p class="muted" style="margin:6px 0">O navegador ${nome} não permite entrar com Google. ${passo}</p>
+    ${abrir}<button id="copy-link" style="width:100%;padding:10px">Copiar link do jogo</button></div>` }
 function loginCover(msg){
   const el=$("#cover"); el.innerHTML=`<div class="panel" style="max-width:380px"><h2>Diflet</h2>
     <p class="muted">Entre com sua conta Google para salvar sua coleção, suas dracmas e suas partidas.</p>
+    ${inAppNotice()}
     ${msg?`<p class="muted" style="color:var(--lose)">${esc(msg)}</p>`:""}
     <button class="primary" id="g-login" style="width:100%;padding:13px">Entrar com Google</button></div>`;
   el.hidden=false;
+  const cp=$("#copy-link"); if(cp) cp.onclick=async()=>{ const url=location.href.split("#")[0];
+    try{ await navigator.clipboard.writeText(url); cp.textContent="Link copiado! Cole no Chrome ou no Safari" }
+    catch(e){ prompt("Copie o link e cole no Chrome ou no Safari:", url) } };
   $("#g-login").onclick=async()=>{ const pv=new firebase.auth.GoogleAuthProvider();
     try{ await FA.signInWithPopup(pv) }catch(e){ if(e && /popup/.test(e.code||"")){ FA.signInWithRedirect(pv) } else loginCover("Não foi possível entrar: "+(e.message||e.code||e)) } };
 }
